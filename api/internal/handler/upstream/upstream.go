@@ -19,19 +19,25 @@ package upstream
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ghodss/yaml"
 	"github.com/shiningrush/droplet"
 	"github.com/shiningrush/droplet/data"
 	"github.com/shiningrush/droplet/wrapper"
 	wgin "github.com/shiningrush/droplet/wrapper/gin"
 
+	"github.com/apisix/manager-api/internal/conf"
 	"github.com/apisix/manager-api/internal/core/entity"
 	"github.com/apisix/manager-api/internal/core/store"
 	"github.com/apisix/manager-api/internal/handler"
+	"github.com/apisix/manager-api/internal/log"
 	"github.com/apisix/manager-api/internal/utils"
 	"github.com/apisix/manager-api/internal/utils/consts"
 )
@@ -41,6 +47,22 @@ type Handler struct {
 	routeStore       store.Interface
 	serviceStore     store.Interface
 	streamRouteStore store.Interface
+}
+
+// UpstreamNode 表示上游节点的基本信息
+type UpstreamNode struct {
+	Hostname string `json:"hostname" yaml:"hostname"`
+	IP       string `json:"ip" yaml:"ip"`
+}
+
+// UpstreamNodesConfig 表示 YAML 配置文件的结构
+type UpstreamNodesConfig struct {
+	Hosts []struct {
+		Hostname    string `yaml:"hostname"`
+		IP          string `yaml:"ip"`
+		Description string `yaml:"description"`
+		Environment string `yaml:"environment"`
+	} `yaml:"hosts"`
 }
 
 func NewHandler() (handler.RouteRegister, error) {
@@ -74,6 +96,9 @@ func (h *Handler) ApplyRoute(r *gin.Engine) {
 		wrapper.InputType(reflect.TypeOf(ExistCheckInput{}))))
 
 	r.GET("/apisix/admin/names/upstreams", wgin.Wraps(h.listUpstreamNames))
+
+	// 新增的 upstream nodes API
+	r.GET("/apisix/admin/upstream-nodes", wgin.Wraps(h.listUpstreamNodes))
 }
 
 type GetInput struct {
@@ -395,4 +420,43 @@ func (h *Handler) listUpstreamNames(c droplet.Context) (interface{}, error) {
 	}
 
 	return output, nil
+}
+
+// listUpstreamNodes 读取 upstream_nodes.yaml 文件并返回主机列表
+func (h *Handler) listUpstreamNodes(c droplet.Context) (interface{}, error) {
+	// 构建 YAML 文件路径
+	yamlPath := filepath.Join(conf.WorkDir, "conf", "upstream_nodes.yaml")
+	
+	// 检查文件是否存在
+	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
+		log.Warnf("upstream_nodes.yaml file not found at path: %s", yamlPath)
+		// 返回空数据而不是错误
+		return []UpstreamNode{}, nil
+	}
+	
+	// 读取 YAML 文件
+	data, err := ioutil.ReadFile(yamlPath)
+	if err != nil {
+		log.Errorf("Failed to read upstream_nodes.yaml file: %v", err)
+		return []UpstreamNode{}, nil
+	}
+	
+	// 解析 YAML 文件
+	var config UpstreamNodesConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		log.Errorf("Failed to parse upstream_nodes.yaml file: %v", err)
+		return []UpstreamNode{}, nil
+	}
+	
+	// 转换为返回格式
+	nodes := make([]UpstreamNode, 0, len(config.Hosts))
+	for _, host := range config.Hosts {
+		nodes = append(nodes, UpstreamNode{
+			Hostname: host.Hostname,
+			IP:       host.IP,
+		})
+	}
+	
+	log.Infof("Successfully loaded %d upstream nodes from config file", len(nodes))
+	return nodes, nil
 }
