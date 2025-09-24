@@ -15734,8 +15734,8 @@ start-server-and-test@^1.11.5:
 
 state-local@^1.0.6:
   version "1.0.7"
-  resolved "https://registry.npm.taobao.org/state-local/download/state-local-1.0.7.tgz#da50211d07f05748d53009bee46307a37db386d5"
-  integrity sha1-2lAhHQfwV0jVMAm+5GMHo32zhtU=
+  resolved "https://registry.npmmirror.com/state-local/-/state-local-1.0.7.tgz#da50211d07f05748d53009bee46307a37db386d5"
+  integrity sha512-HTEHMNieakEnoe33shBYcZ7NX83ACUjCu8c40iOGEZsngj9zRnkqS9j1pqQPXwobB0ZcVTk27REb7COQ0UR59w==
 
 state-toggle@^1.0.0:
   version "1.0.3"
